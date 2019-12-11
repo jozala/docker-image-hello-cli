@@ -1,0 +1,62 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.3.60'
+    id 'application'
+}
+
+application {
+    mainClassName = 'pl.aetas.blog.dockerimage.MainKt'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'pl.aetas.blog.dockerimage.MainKt'
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+task copyJarToDockerDir(type: Copy) {
+    from "$buildDir/libs"
+    include "**/*.jar"
+    into "$buildDir/docker"
+}
+
+task prepareDockerDir(type: Copy) {
+    from "$projectDir/docker"
+    include "**/*"
+    filter { it.replaceAll('<%=name%>', project.name) }
+    into "$buildDir/docker"
+}
+
+task buildDockerImage(type:Exec) {
+    workingDir "$buildDir"
+    commandLine "docker", "build", "-t", "maniekq/${project.name}:${project.version}", "docker"
+}
+
+task pushDockerImage(type: Exec) {
+    commandLine "docker", "push", "maniekq/${project.name}:${project.version}"
+}
+
+copyJarToDockerDir.dependsOn build
+buildDockerImage.dependsOn prepareDockerDir
+buildDockerImage.dependsOn copyJarToDockerDir
+pushDockerImage.dependsOn buildDockerImage
